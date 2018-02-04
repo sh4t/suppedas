@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"sync"
@@ -28,6 +29,7 @@ func bluetoothCtl(wg *sync.WaitGroup, persistChannel chan persistMessage) {
 	check(err)
 	err = e.Send("remove *\r\n")
 	check(err)
+	log.Printf("Connected to bluetoothctl, scanning started.")
 
 	// [NEW] Device E4:7D:BD:55:6B:22 [TV] Samsung 7 Series (55)
 	var newEntryRegex = regexp.MustCompile(`^\[.*NEW.*\] Device [A-Z,0-9,:]* .*\n`)
@@ -40,13 +42,12 @@ func bluetoothCtl(wg *sync.WaitGroup, persistChannel chan persistMessage) {
 
 	for {
 		_, match, index, _ := e.ExpectSwitchCase(cases, 10*time.Millisecond)
-		//checkExpectErr(out, match, err)
 		if len(match) > 0 {
 			switch index {
 			case 0:
 				matchSplit := strings.Split(match[0], " ")
 				mac := matchSplit[2]
-				rssi := matchSplit[4]
+				rssi := strings.TrimSuffix(matchSplit[4], "\n")
 				message := persistMessage{Mac: mac, Rssi: rssi, Timestamp: time.Now()}
 				persistChannel <- message
 			case 1:
