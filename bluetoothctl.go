@@ -37,8 +37,8 @@ func bluetoothCtl(wg *sync.WaitGroup, persistChannel chan persistMessage) {
 	var rssiChangedRegex = regexp.MustCompile(`^\[.*CHG.*\] Device [A-Z,0-9,:]* RSSI: -[0-9]{1,3}\n`)
 
 	var cases []expect.Caser
-	cases = append(cases, &expect.Case{rssiChangedRegex, "", nil, 0}) // index 1
-	cases = append(cases, &expect.Case{newEntryRegex, "", nil, 0})    // index 0
+	cases = append(cases, &expect.Case{R: rssiChangedRegex}) // index 1
+	cases = append(cases, &expect.Case{R: newEntryRegex})    // index 0
 
 	// emit warning if no matches
 	secondsToWarn := 60.0
