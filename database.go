@@ -25,7 +25,7 @@ func databaseWriter(dbFile string, locationName string, persistChannel chan pers
 	tx, err := db.Begin()
 	check(err)
 	// set low while developing
-	commitIntervalSeconds := 1.0
+	commitIntervalSeconds := 5.0
 	lastCommit := time.Now()
 	for {
 		entry := <-persistChannel

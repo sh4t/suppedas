@@ -40,6 +40,9 @@ func bluetoothCtl(wg *sync.WaitGroup, persistChannel chan persistMessage) {
 	cases = append(cases, &expect.Case{rssiChangedRegex, "", nil, 0}) // index 1
 	cases = append(cases, &expect.Case{newEntryRegex, "", nil, 0})    // index 0
 
+	// emit warning if no matches
+	secondsToWarn := 60.0
+	lastMatch := time.Now()
 	for {
 		_, match, index, _ := e.ExpectSwitchCase(cases, 10*time.Millisecond)
 		if len(match) > 0 {
@@ -50,6 +53,7 @@ func bluetoothCtl(wg *sync.WaitGroup, persistChannel chan persistMessage) {
 				rssi := strings.TrimSuffix(matchSplit[4], "\n")
 				message := persistMessage{Mac: mac, Rssi: rssi, Timestamp: time.Now()}
 				persistChannel <- message
+				lastMatch = time.Now()
 			case 1:
 				matchSplit := strings.Split(match[0], " ")
 				mac := matchSplit[2]
@@ -57,7 +61,15 @@ func bluetoothCtl(wg *sync.WaitGroup, persistChannel chan persistMessage) {
 				name = strings.TrimSuffix(name, "\n")
 				message := persistMessage{Mac: mac, Name: name, Timestamp: time.Now()}
 				persistChannel <- message
+				lastMatch = time.Now()
+
 			}
+		} else {
+			if time.Since(lastMatch).Seconds() > secondsToWarn {
+				log.Printf("Warning, no bluetooth activity for %f seconds", secondsToWarn)
+				lastMatch = time.Now()
+			}
+
 		}
 	}
 }
