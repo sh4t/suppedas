@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -11,7 +12,7 @@ import (
 	expect "github.com/google/goexpect"
 )
 
-func bluetoothCtl(wg *sync.WaitGroup, persistChannel chan persistMessage) {
+func bluetoothCtl(wg *sync.WaitGroup, persistChannel chan persistMessage, recordResolution uint32) {
 	defer wg.Done()
 
 	e, _, err := expect.Spawn("bluetoothctl", -1)
@@ -29,7 +30,7 @@ func bluetoothCtl(wg *sync.WaitGroup, persistChannel chan persistMessage) {
 	check(err)
 	err = e.Send("remove *\r\n")
 	check(err)
-	log.Printf("Connected to bluetoothctl, scanning started.")
+	log.Printf("Connected to bluetoothctl, RSSI record resolution is %d seconds.", recordResolution)
 
 	// [NEW] Device E4:7D:BD:55:6B:22 [TV] Samsung 7 Series (55)
 	var newEntryRegex = regexp.MustCompile(`^\[.*NEW.*\] Device [A-Z,0-9,:]* .*\n`)
@@ -40,19 +41,51 @@ func bluetoothCtl(wg *sync.WaitGroup, persistChannel chan persistMessage) {
 	cases = append(cases, &expect.Case{R: rssiChangedRegex}) // index 1
 	cases = append(cases, &expect.Case{R: newEntryRegex})    // index 0
 
-	// emit warning if no matches
+	// emit warning if no matches in secondsToWarn
 	secondsToWarn := 60.0
 	lastMatch := time.Now()
+
+	// used to throttle rssi messsages
+	var rssiMessages map[string]*persistMessage
+	rssiMessages = make(map[string]*persistMessage)
+	removeChannel := make(chan string)
+
 	for {
 		_, match, index, _ := e.ExpectSwitchCase(cases, 10*time.Millisecond)
+
+		// if an entry requested to be removed, do it so...
+		select {
+		case mac := <-removeChannel:
+			entry := rssiMessages[mac]
+			persistChannel <- *entry
+			log.Printf("Persisting: %v", entry)
+			delete(rssiMessages, mac)
+		default:
+		}
+
+		// did the regex match?
 		if len(match) > 0 {
 			switch index {
 			case 0:
 				matchSplit := strings.Split(match[0], " ")
 				mac := matchSplit[2]
-				rssi := strings.TrimSuffix(matchSplit[4], "\n")
-				message := persistMessage{Mac: mac, Rssi: rssi, Timestamp: time.Now()}
-				persistChannel <- message
+				rssi, err := strconv.Atoi(strings.TrimSuffix(matchSplit[4], "\n"))
+				if err != nil {
+					log.Printf("Error reading rssi in message: %v\n", matchSplit)
+					continue
+				}
+				entry := rssiMessages[mac]
+
+				if entry != nil {
+					if rssi > entry.Rssi {
+						entry.Rssi = rssi
+						entry.Timestamp = time.Now()
+					}
+				} else {
+					rssiMessages[mac] = &persistMessage{Mac: mac, Rssi: rssi, Timestamp: time.Now()}
+					go entryRemover(mac, removeChannel, recordResolution)
+				}
+
 				lastMatch = time.Now()
 			case 1:
 				matchSplit := strings.Split(match[0], " ")
@@ -81,4 +114,9 @@ func checkExpectErr(out string, match []string, e error) {
 		fmt.Printf("Gexpect match: %v\n", match)
 		panic(e)
 	}
+}
+
+func entryRemover(mac string, removeChannel chan string, timeoutSeconds uint32) {
+	time.Sleep(time.Duration(timeoutSeconds) * time.Second)
+	removeChannel <- mac
 }

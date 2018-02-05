@@ -6,7 +6,7 @@ import (
 
 type persistMessage struct {
 	Timestamp time.Time
-	Rssi      string
+	Rssi      int
 	Mac       string
 	Name      string
 }
