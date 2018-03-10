@@ -58,7 +58,6 @@ func bluetoothCtl(wg *sync.WaitGroup, persistChannel chan persistMessage, record
 		case mac := <-removeChannel:
 			entry := rssiMessages[mac]
 			persistChannel <- *entry
-			log.Printf("Persisting: %v", entry)
 			delete(rssiMessages, mac)
 		default:
 		}
