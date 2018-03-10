@@ -15,7 +15,7 @@ func main() {
 	cmdFlags := flag.NewFlagSet("suppedasFlags", flag.ExitOnError)
 	cmdFlags.StringVar(&locationName, "l", "", "Name of the current position")
 	cmdFlags.StringVar(&dbFile, "d", "suppedas.db", "Output database")
-	cmdFlags.UintVar(&rssiResolution, "r", 30, "RSSI record interval")
+	cmdFlags.UintVar(&rssiResolution, "r", 30, "RSSI record interval in seconds")
 
 	cmdFlags.Parse(os.Args[1:])
 
